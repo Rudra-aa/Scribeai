@@ -34,6 +34,27 @@ function ParticleSwarm(props) {
   );
 }
 
+import React from 'react';
+
+class CanvasErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.warn("WebGL Canvas crashed. Falling back to simple background.", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return null; // Just show no particles, keep the rest of the site alive
+    }
+    return this.props.children;
+  }
+}
+
 export default function SpatialCanvas() {
   return (
     <div className="fixed inset-0 z-0 pointer-events-none bg-background">
@@ -41,9 +62,11 @@ export default function SpatialCanvas() {
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px]" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/20 rounded-full blur-[120px]" />
       
-      <Canvas camera={{ position: [0, 0, 1] }}>
-        <ParticleSwarm />
-      </Canvas>
+      <CanvasErrorBoundary>
+        <Canvas camera={{ position: [0, 0, 1] }}>
+          <ParticleSwarm />
+        </Canvas>
+      </CanvasErrorBoundary>
     </div>
   );
 }
