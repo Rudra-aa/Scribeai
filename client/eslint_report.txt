@@ -1,0 +1,213 @@
+
+> client@0.0.0 lint
+> eslint .
+
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/App.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/components/landing/HeroScene.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/components/landing/LandingSections.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/components/landing/SpatialCanvas.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/components/layout/Footer.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/components/layout/Navbar.jsx
+   1:8   error  'React' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            no-unused-vars
+  26:21  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  24 |
+  25 |   // Close mobile menu on route change
+> 26 |   useEffect(() => { setMobileOpen(false); }, [location]);
+     |                     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  27 |
+  28 |   return (
+  29 |     <>  react-hooks/set-state-in-effect
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/pages/Auth.jsx
+  1:8   error  'React' is defined but never used      no-unused-vars
+  1:27  error  'useEffect' is defined but never used  no-unused-vars
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/pages/Dashboard.jsx
+    1:8   error    'React' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             no-unused-vars
+  208:10  error    'aiStatus' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  211:9   error    'mediaRecorderRef' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-unused-vars
+  213:9   error    'liveIntervalRef' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
+  269:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  267 |
+  268 |     // Set User Profile from localStorage
+> 269 |     setUserName(localStorage.getItem("userName") || "User");
+      |     ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  270 |     setUserEmail(localStorage.getItem("userEmail") || "—");
+  271 |
+  272 |     // Theme Setup                                                                                                                                                                                                                                                                           react-hooks/set-state-in-effect
+  275:5   error    Error: Cannot access variable before it is declared
+
+`applyTheme` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  273 |     const savedTheme = localStorage.getItem("scribeai-theme") || 
+  274 |       (window.matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light");
+> 275 |     applyTheme(savedTheme);
+      |     ^^^^^^^^^^ `applyTheme` accessed before it is declared
+  276 |
+  277 |     // Initial load of jobs & diagnostics
+  278 |     checkHealthAndAuth();
+
+  286 |
+  287 |   // ─── Theme Management ────────────────────────────────────────────────────────
+> 288 |   const applyTheme = (t) => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 289 |     document.documentElement.setAttribute("data-theme", t);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 290 |     localStorage.setItem("scribeai-theme", t);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 291 |     setTheme(t);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 292 |   };
+      | ^^^^^ `applyTheme` is declared here
+  293 |
+  294 |   const toggleTheme = () => {
+  295 |     applyTheme(theme === "dark" ? "light" : "dark");                        react-hooks/immutability
+  278:5   error    Error: Cannot access variable before it is declared
+
+`checkHealthAndAuth` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  276 |
+  277 |     // Initial load of jobs & diagnostics
+> 278 |     checkHealthAndAuth();
+      |     ^^^^^^^^^^^^^^^^^^ `checkHealthAndAuth` accessed before it is declared
+  279 |
+  280 |     return () => {
+  281 |       stopPolling();
+
+  346 |   };
+  347 |
+> 348 |   const checkHealthAndAuth = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 349 |     console.log("[Diagnostics] Initiating Node backend & AI Engine health checks...");
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 350 |     console.log("[Diagnostics] Auth Token present:", !!localStorage.getItem("token"));
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 384 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 385 |   };
+      | ^^^^^ `checkHealthAndAuth` is declared here
+  386 |
+  387 |   // ─── Switch View ─────────────────────────────────────────────────────────────
+  388 |   const handleSwitchView = (v) => {  react-hooks/immutability
+  281:7   error    Error: Cannot access variable before it is declared
+
+`stopPolling` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  279 |
+  280 |     return () => {
+> 281 |       stopPolling();
+      |       ^^^^^^^^^^^ `stopPolling` accessed before it is declared
+  282 |       stopLiveRecording();
+  283 |       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  284 |     };
+
+  559 |   };
+  560 |
+> 561 |   const stopPolling = () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 562 |     if (pollTimerRef.current) {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 563 |       clearInterval(pollTimerRef.current);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 564 |       pollTimerRef.current = null;
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 565 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 566 |   };
+      | ^^^^^ `stopPolling` is declared here
+  567 |
+  568 |   // ─── Open Notes / Job Details ───────────────────────────────────────────────
+  569 |   const openJob = async (jobId) => {                                                                                                                                                                                                               react-hooks/immutability
+  282:7   error    Error: Cannot access variable before it is declared
+
+`stopLiveRecording` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  280 |     return () => {
+  281 |       stopPolling();
+> 282 |       stopLiveRecording();
+      |       ^^^^^^^^^^^^^^^^^ `stopLiveRecording` accessed before it is declared
+  283 |       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  284 |     };
+  285 |   }, [navigate]);
+
+  791 |   };
+  792 |
+> 793 |   const stopLiveRecording = () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 794 |     setIsRecording(false);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 795 |     setLiveStatus("Disconnected");
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 829 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 830 |   };
+      | ^^^^^ `stopLiveRecording` is declared here
+  831 |
+  832 |   // ─── Sign Out ────────────────────────────────────────────────────────────────
+  833 |   const handleSignOut = () => {                                                                                                                                                                                                                                                                    react-hooks/immutability
+  285:6   warning  React Hook useEffect has a missing dependency: 'checkHealthAndAuth'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  646:88  error    '_' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  646:91  error    Empty block statement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-empty
+  760:49  error    '_' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  760:52  error    Empty block statement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-empty
+  800:53  error    '_' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  800:56  error    Empty block statement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-empty
+  816:51  error    '_' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  816:54  error    Empty block statement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-empty
+  822:16  error    '_' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  822:19  error    Empty block statement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-empty
+  828:55  error    '_' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 no-unused-vars
+  828:58  error    Empty block statement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         no-empty
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/pages/Landing.jsx
+  1:8  error  'React' is defined but never used  no-unused-vars
+
+/Users/rudrapratapsinghparmar/Desktop/Scribeai/client/src/pages/LiveMeeting.jsx
+   1:8   error  'React' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           no-unused-vars
+  39:14  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  37 |   useEffect(() => {
+  38 |     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+> 39 |     if (!SR) setSupported(false);
+     |              ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  40 |   }, []);
+  41 |
+  42 |   const startRecognition = useCallback(() => {  react-hooks/set-state-in-effect
+  71:45  error  '_' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               no-unused-vars
+  71:48  error  Empty block statement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       no-empty
+
+✖ 36 problems (35 errors, 1 warning)
+

@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Database & outputs
+*.db
+outputs/
+
+# Secrets - NEVER deploy these
+serviceAccountKey.json
+
+# Firebase
+.firebase/

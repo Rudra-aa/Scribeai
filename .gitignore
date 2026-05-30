@@ -1,0 +1,39 @@
+# ── Secrets ────────────────────────────────────────
+.env
+.env.local
+serviceAccountKey.json
+
+# ── Python ──────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# ── Node / npm ──────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Vite / React build ──────────────────────────────
+client/dist/
+client/.vite/
+
+# ── Uploads & AI output artifacts ───────────────────
+server/uploads/*
+!server/uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+
+# ── OS ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ────────────────────────────────────────────
+*.log
+
+# ── IDE ─────────────────────────────────────────────
+.vscode/
+.idea/
