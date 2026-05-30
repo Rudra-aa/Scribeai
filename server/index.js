@@ -96,7 +96,7 @@ io.on('connection', (socket) => {
 
             // Call Python AI Engine for high-speed translation
             const axios = require('axios');
-            const response = await axios.post('http://localhost:8000/ai/translate', {
+            const response = await axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/translate', {
                 text: text,
                 target_language: targetLang
             });

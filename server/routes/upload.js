@@ -47,7 +47,7 @@ router.post('/', upload.single('file'), async (req, res) => {
         const formData = new FormData();
         formData.append('file', fs.createReadStream(req.file.path));
 
-        const aiResponse = await axios.post('http://localhost:8000/ai/transcribe', formData, {
+        const aiResponse = await axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/transcribe', formData, {
             headers: formData.getHeaders()
         });
         res.json(aiResponse.data);

@@ -213,7 +213,7 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
         }
 
         // Notify Python AI Engine in background
-        axios.post('http://localhost:8000/ai/process', {
+        axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process', {
             job_id: jobId,
             uid: req.user._id.toString(),
             file_path: req.file.path,
@@ -278,7 +278,7 @@ router.post('/process-youtube', protect, async (req, res) => {
         }
 
         // Notify Python AI Engine
-        axios.post('http://localhost:8000/ai/process', {
+        axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process', {
             job_id: jobId,
             uid: req.user._id.toString(),
             youtube_url,
