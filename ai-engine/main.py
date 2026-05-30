@@ -1010,26 +1010,8 @@ async def process_pipeline(req: ProcessRequest, tmp_dir: str,
 
         # ── 6. Subtitle burn ──────────────────────────────────────────────────
         subtitled_video_path = ""
-        VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".webm"}
-        if video_path and Path(video_path).suffix.lower() in VIDEO_EXTS:
-            try:
-                srt_file       = OUTPUTS_DIR / f"{job_id}_subs.srt"
-                sub_video_file = OUTPUTS_DIR / f"{job_id}_subtitled.mp4"
-                srt_file.write_text(srt, encoding="utf-8")
-                cmd = [
-                    "ffmpeg", "-i", video_path,
-                    "-vf", f"subtitles={srt_file.name}",
-                    "-map", "0:v:0", "-map", "0:a?",
-                    "-c:v", "libx264", "-preset", "superfast",
-                    "-c:a", "aac", "-y", str(sub_video_file),
-                ]
-                await asyncio.to_thread(
-                    lambda: subprocess.run(cmd, cwd=str(OUTPUTS_DIR), check=True,
-                                           capture_output=True, timeout=600)
-                )
-                subtitled_video_path = str(sub_video_file)
-            except Exception as exc:
-                log.error("Subtitle burn failed: %s", exc, extra={"job_id": job_id, "stage": "burn"})
+        # Video rendering with FFmpeg is disabled on the Cloud version because 
+        # the 512MB RAM limit causes the server to crash (OOM Kill) at 85%.
 
         # ── 7. Finalise ───────────────────────────────────────────────────────
         e2e_ms = int((time.perf_counter() - t_start) * 1000)
