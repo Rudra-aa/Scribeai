@@ -13,7 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app code
 COPY main.py .
-COPY serviceAccountKey.json .
 
 # Create outputs directory
 RUN mkdir -p outputs
