@@ -73,7 +73,7 @@ load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_WHISPER    = "whisper-large-v3"
-GROQ_LLM_MODEL  = "llama-3.1-8b-instant"
+GROQ_LLM_MODEL  = "llama3-8b-8192"
 OLLAMA_HOST     = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "phi3:mini")
 MONGO_URI_RAW   = os.getenv("MONGO_URI", "mongodb://localhost:27017/scribeai")
