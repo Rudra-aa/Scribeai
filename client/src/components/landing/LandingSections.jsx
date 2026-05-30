@@ -50,7 +50,7 @@ const features = [
   },
   {
     title: 'Real-Time Translation',
-    desc: 'Live speech-to-text with simultaneous translation across 50+ language pairs.',
+    desc: 'Live speech-to-text with simultaneous translation across 50+ language pairs. (Video-to-Video coming soon!)',
     icon: Mic, accent: '#F472B6',
     terminal: ['> live.translate()', '> en → hi: active', '> latency: 120ms'],
   },
@@ -118,6 +118,7 @@ const faqs = [
 ];
 
 const integrations = [
+  { name: 'Voxo', icon: '🎙️', desc: 'Real-time translation API' },
   { name: 'Whisper AI', icon: '🤖', desc: 'Transcription engine' },
   { name: 'Firebase', icon: '🔥', desc: 'Auth & storage' },
   { name: 'Socket.io', icon: '⚡', desc: 'Real-time sync' },
