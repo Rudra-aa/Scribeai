@@ -309,7 +309,7 @@ async def db_update_async(job_id: str, updates: Dict[str, Any]):
             log.error("MongoDB update failed", extra={"job_id": job_id, "stage": "db", "error_detail": str(exc)})
         try:
             httpx.post(
-                f"http://localhost:5001/api/callback/job/{job_id}",
+                f"{os.getenv('NODE_BACKEND_URL', 'http://localhost:5001')}/api/callback/job/{job_id}",
                 json=updates, timeout=2.0
             )
         except Exception:
