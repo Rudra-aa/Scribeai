@@ -307,7 +307,7 @@ export default function Dashboard() {
   // ─── API Helper ──────────────────────────────────────────────────────────────
   const apiCall = async (path, opts = {}) => {
     const token = localStorage.getItem("token");
-    const res = await fetch(`http://localhost:5001/api${path}`, {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api${path}`, {
       ...opts,
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -351,7 +351,7 @@ export default function Dashboard() {
 
     // 1. Check Node backend health
     try {
-      const nodeRes = await fetch("http://localhost:5001/health");
+      const nodeRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/health`);
       if (!nodeRes.ok) throw new Error("Node backend offline");
       const nodeData = await nodeRes.json();
       setBackendStatus('online');
@@ -365,7 +365,7 @@ export default function Dashboard() {
 
     // 2. Check Python AI Engine health
     try {
-      const pyRes = await fetch("http://localhost:8000/health");
+      const pyRes = await fetch(`${import.meta.env.VITE_AI_URL || 'http://localhost:8000'}/health`);
       if (!pyRes.ok) throw new Error("AI engine offline");
       const pyData = await pyRes.json();
       console.log("[Diagnostics] Python AI Engine is online:", pyData);
@@ -607,11 +607,11 @@ export default function Dashboard() {
     
     if (fmt === 'md' || fmt === 'srt' || fmt === 'vtt') {
       // Server routes handle this nicely by streaming from MongoDB
-      const downloadUrl = `http://localhost:5001/api/download/${selectedJob.id}/${fmt}?token=${token}`;
+      const downloadUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJob.id}/${fmt}?token=${token}`;
       window.open(downloadUrl, "_blank");
       showToast(`Downloading .${fmt.toUpperCase()} file`);
     } else if (fmt === 'audio' || fmt === 'video') {
-      const downloadUrl = `http://localhost:5001/api/download/${selectedJob.id}/${fmt}?token=${token}`;
+      const downloadUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJob.id}/${fmt}?token=${token}`;
       window.open(downloadUrl, "_blank");
       showToast(`Downloading media file`);
     }
@@ -681,7 +681,7 @@ export default function Dashboard() {
       }
 
       // Connect socket.io client to MERN backend
-      socketRef.current = io('http://localhost:5001');
+      socketRef.current = io(import.meta.env.VITE_API_URL || 'http://localhost:5001');
 
       socketRef.current.on('connect', () => {
         setIsRecording(true);
@@ -1366,7 +1366,7 @@ export default function Dashboard() {
                         selectedJobFull.fileName.toLowerCase().endsWith(".wav")) ? (
                         <audio controls style={{ width: '100%', borderRadius: '10px', boxShadow: 'var(--shadow)' }}>
                           <source 
-                            src={`http://localhost:5001/api/download/${selectedJobFull.id}/audio?token=${localStorage.getItem("token")}`} 
+                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJobFull.id}/audio?token=${localStorage.getItem("token")}`} 
                             type="audio/mpeg" 
                           />
                         </audio>
@@ -1378,13 +1378,13 @@ export default function Dashboard() {
                           style={{ width: '100%', borderRadius: '10px', maxHeight: '250px', background: '#000', boxShadow: 'var(--shadow)', border: '1px solid var(--wire)' }}
                         >
                           <source 
-                            src={`http://localhost:5001/api/download/${selectedJobFull.id}/video?token=${localStorage.getItem("token")}`} 
+                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJobFull.id}/video?token=${localStorage.getItem("token")}`} 
                             type="video/mp4" 
                           />
                           {(selectedJobFull.srtText || selectedJobFull.vttText) && (
                             <track 
                               kind="subtitles" 
-                              src={`http://localhost:5001/api/download/${selectedJobFull.id}/vtt?token=${localStorage.getItem("token")}`} 
+                              src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJobFull.id}/vtt?token=${localStorage.getItem("token")}`} 
                               srcLang={selectedJobFull.targetLanguage || selectedJobFull.language || 'en'} 
                               label="Subtitles" 
                               default 
