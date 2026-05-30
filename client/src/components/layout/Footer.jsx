@@ -82,10 +82,10 @@ export default function OsFooter() {
 
       <div style={{ position: 'relative', zIndex: 1, borderTop: '1px solid rgba(255,255,255,0.05)', padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', maxWidth: '72rem', margin: '0 auto' }}>
         <span style={{ color: '#64748B', fontSize: '0.78rem', fontFamily: 'Fira Code, monospace' }}>
-          © {new Date().getFullYear()} ScribeAI · Free tier available · Powered by Whisper AI · Firebase Firestore
+          © {new Date().getFullYear()} ScribeAI
         </span>
         <span style={{ color: '#334155', fontSize: '0.75rem', fontFamily: 'Fira Code, monospace' }}>
-          // ALL SYSTEMS NOMINAL
+          ALL SYSTEMS NOMINAL
         </span>
       </div>
     </footer>

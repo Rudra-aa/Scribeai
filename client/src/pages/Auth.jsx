@@ -145,8 +145,8 @@ export default function Auth() {
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#05060A', fontFamily: 'Inter, sans-serif' }}>
 
       {/* ── LEFT PANEL ──────────────────────────────────────── */}
-      <div style={{ flex: '0 0 45%', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '3rem', background: 'linear-gradient(145deg, #0B1020 0%, #05060A 100%)' }}
-        className="hidden lg:flex">
+      <div style={{ flex: '0 0 45%', position: 'relative', overflow: 'hidden', padding: '3rem', background: 'linear-gradient(145deg, #0B1020 0%, #05060A 100%)' }}
+        className="hidden lg:flex lg:flex-col">
 
         {/* Ambient orbs */}
         <FloatingOrb size={300} color="rgba(124,58,237,0.15)" x="10%" y="15%" delay={0} />
