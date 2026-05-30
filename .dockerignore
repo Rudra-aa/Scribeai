@@ -4,9 +4,16 @@ __pycache__/
 venv/
 .env
 
-# Database & outputs
+# Node.js
+node_modules/
+dist/
+build/
+client/
+
+# Database & generated directories
 *.db
 outputs/
+uploads/
 
 # Secrets - NEVER deploy these
 serviceAccountKey.json
