@@ -363,16 +363,7 @@ export default function Dashboard() {
       return;
     }
 
-    // 2. Check Python AI Engine health
-    try {
-      const pyRes = await fetch(`${import.meta.env.VITE_AI_URL || 'http://localhost:8000'}/health`);
-      if (!pyRes.ok) throw new Error("AI engine offline");
-      const pyData = await pyRes.json();
-      console.log("[Diagnostics] Python AI Engine is online:", pyData);
-    } catch (err) {
-      console.warn("[Diagnostics] Python AI Engine is offline:", err.message);
-      showToast("Python AI Engine is offline on port 8000.", "err");
-    }
+    // 2. Python AI Engine health check removed because it is now securely internal to the Render container.
 
     // 3. Initial load of jobs & token verification
     try {
