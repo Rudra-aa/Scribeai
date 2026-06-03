@@ -178,6 +178,13 @@ export default function Dashboard() {
   // Jobs state
   const [jobs, setJobs] = useState([]);
   const [selectedJob, setSelectedJob] = useState(null);
+  
+  const isJobStuck = (job) => {
+    if (job.status !== 'processing') return false;
+    const lastUpdate = new Date(job.lastProgressAt || job.updatedAt).getTime();
+    const now = Date.now();
+    return (now - lastUpdate) > 10 * 60 * 1000;
+  };
   const [selectedJobFull, setSelectedJobFull] = useState(null);
   
   // File Upload State
@@ -308,6 +315,7 @@ export default function Dashboard() {
   const apiCall = async (path, opts = {}) => {
     const token = localStorage.getItem("token");
     const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api${path}`, {
+      cache: 'no-store',
       ...opts,
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -558,22 +566,21 @@ export default function Dashboard() {
   const openJob = async (jobId) => {
     showToast("Loading notes…");
     try {
-      // Find basic cached job
-      const basicJob = jobs.find(x => x.id === jobId) || { id: jobId, file_name: "Notes" };
-      setSelectedJob(basicJob);
-      setView('notes');
-
-      // Fetch full details
+      // Fetch full details first to avoid stale closure state
       const res = await apiCall(`/status/${jobId}`);
       const fullJob = await res.json();
+      
+      setSelectedJob(fullJob);
       setSelectedJobFull(fullJob);
+      setView('notes');
     } catch (e) {
       showToast("Could not load details: " + e.message, "err");
     }
   };
 
   // ─── Delete Notes ────────────────────────────────────────────────────────────
-  const handleDeleteNote = async () => {
+  const handleDeleteNote = async (e) => {
+    if (e) e.stopPropagation();
     if (!selectedJob) return;
     if (!window.confirm("Are you sure you want to completely delete this note? This cannot be undone.")) return;
 
@@ -588,6 +595,39 @@ export default function Dashboard() {
     } catch (err) {
       console.error(err);
       showToast("Failed to delete note: " + err.message, "err");
+    }
+  };
+
+  const handleDeleteFromList = async (jobId, e) => {
+    e.stopPropagation();
+    if (!window.confirm("Are you sure you want to completely delete this note? This cannot be undone.")) return;
+    try {
+      showToast("Deleting note...");
+      await apiCall(`/job/${jobId}`, { method: "DELETE" });
+      setJobs(jobs.filter(j => j.id !== jobId));
+      if (selectedJob && selectedJob.id === jobId) {
+         setSelectedJob(null);
+         setSelectedJobFull(null);
+         setView('history');
+      }
+      showToast("Note deleted successfully.");
+    } catch (err) {
+      showToast("Failed to delete note: " + err.message, "err");
+    }
+  };
+
+  const handleRetry = async (jobId, e) => {
+    if (e) e.stopPropagation();
+    try {
+      showToast("Initiating retry...");
+      await apiCall(`/job/${jobId}/retry`, { method: "POST" });
+      showToast("Retry initiated successfully");
+      loadJobs();
+      if (selectedJob && selectedJob.id === jobId) {
+         openJob(jobId);
+      }
+    } catch (err) {
+      showToast("Retry failed: " + err.message, "err");
     }
   };
 
@@ -1071,19 +1111,25 @@ export default function Dashboard() {
                       <div className="empty-sub">Upload your first video to get started.</div>
                     </div>
                   ) : (
-                    jobs.slice(0, 6).map((j) => (
+                    jobs.slice(0, 6).map((j) => {
+                      const stuck = isJobStuck(j);
+                      return (
                       <div key={j.id} className="job-card" onClick={() => openJob(j.id)}>
                         <div className="jc-icon">🎬</div>
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <div className="jc-name">{j.fileName || "Untitled"}</div>
                           <div className="jc-meta">
                             {fmtDate(j.createdAt)} · {j.language}
                             {j.targetLanguage ? ` → ${j.targetLanguage}` : ''}
                           </div>
                         </div>
-                        <span className={`jc-badge ${j.status}`}>{j.status}</span>
+                        {stuck && j.status === 'processing' ? (
+                            <span className="jc-badge error">Stuck</span>
+                        ) : (
+                            <span className={`jc-badge ${j.status}`}>{j.status}</span>
+                        )}
                       </div>
-                    ))
+                    )})
                   )}
                 </div>
               </div>
@@ -1292,20 +1338,7 @@ export default function Dashboard() {
                       </button>
                     )}
                     
-                    {(selectedJobFull.subtitledVideoPath || 
-                      (selectedJobFull.fileName && 
-                       (selectedJobFull.fileName.toLowerCase().endsWith(".mp4") || 
-                        selectedJobFull.fileName.toLowerCase().endsWith(".mov") || 
-                        selectedJobFull.fileName.toLowerCase().endsWith(".webm") || 
-                        selectedJobFull.fileName.toLowerCase().endsWith(".mkv")))) && (
-                      <button 
-                        className="export-btn" 
-                        onClick={() => handleDownload('video')}
-                        style={{ color: 'var(--volt)', borderColor: 'var(--volt-border)' }}
-                      >
-                        🎬 Download Video
-                      </button>
-                    )}
+
                     
                     <div style={{ flex: 1 }}></div>
                     
@@ -1326,11 +1359,51 @@ export default function Dashboard() {
                 <div className="notes-body">
                   {selectedJobFull ? (
                     selectedJobFull.notes ? (
-                      <div dangerouslySetInnerHTML={{ __html: mdToHtml(selectedJobFull.notes) }} />
+                      <div>
+                        {selectedJobFull.qualityStatus && selectedJobFull.qualityStatus !== 'good' && (
+                          <div style={{ background: 'rgba(255, 77, 79, 0.1)', color: 'var(--rose)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', border: '1px solid rgba(255, 77, 79, 0.3)' }}>
+                            <strong style={{ display: 'block', marginBottom: '0.25rem' }}>
+                              ⚠️ {selectedJobFull.qualityStatus === 'hallucination' ? 'Possible Hallucination Detected' : 'Low Quality Audio'}
+                            </strong>
+                            {selectedJobFull.rejectionReason}
+                          </div>
+                        )}
+                        <div dangerouslySetInnerHTML={{ __html: mdToHtml(selectedJobFull.notes) }} />
+                      </div>
                     ) : selectedJobFull.status === 'processing' ? (
                       <div style={{ color: 'var(--text-2)', padding: '2rem', textAlign: 'center' }}>
-                        <div className="spin" style={{ margin: '0 auto 1rem' }}></div>
-                        Still processing — check back shortly.
+                        <div className="spin" style={{ margin: '0 auto 1rem', display: isJobStuck(selectedJobFull) ? 'none' : 'block' }}></div>
+                        {isJobStuck(selectedJobFull) ? (
+                            <div style={{ marginTop: '1rem' }}>
+                                <div style={{ color: 'var(--amber)', fontSize: '1.2rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                                    ⚠ Processing appears stuck
+                                </div>
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    This job hasn't updated its progress in over 10 minutes.
+                                </div>
+                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                                    <button className="btn-generate" onClick={(e) => handleRetry(selectedJobFull.id, e)}>Retry</button>
+                                    <button className="export-btn" style={{ borderColor: 'rgba(255,77,79,0.3)', color: '#ff4d4f' }} onClick={(e) => handleDeleteNote(e)}>Delete</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div>Still processing — check back shortly.</div>
+                        )}
+                        
+                        {selectedJobFull.logs && selectedJobFull.logs.length > 0 && (
+                            <div style={{ marginTop: '2rem', textAlign: 'left', background: 'var(--card-2)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--wire)' }}>
+                                <h4 style={{ color: 'var(--text)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>Pipeline Logs</span>
+                                </h4>
+                                <div style={{ maxHeight: '300px', overflowY: 'auto', fontSize: '0.85rem', fontFamily: 'monospace' }}>
+                                    {selectedJobFull.logs.map((l, i) => (
+                                        <div key={i} style={{ marginBottom: '0.25rem' }}>
+                                            <span style={{ color: 'var(--text-2)' }}>[{new Date(l.timestamp).toLocaleTimeString()}]</span> <span style={{ color: 'var(--text)' }}>{l.message}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                       </div>
                     ) : selectedJobFull.status === 'error' ? (
                       <div style={{ color: 'var(--rose)', padding: '1rem' }}>
@@ -1354,34 +1427,13 @@ export default function Dashboard() {
                       {/* Audio Player */}
                       {selectedJobFull.fileName && 
                        (selectedJobFull.fileName.toLowerCase().endsWith(".mp3") || 
-                        selectedJobFull.fileName.toLowerCase().endsWith(".wav")) ? (
+                        selectedJobFull.fileName.toLowerCase().endsWith(".wav")) && (
                         <audio controls style={{ width: '100%', borderRadius: '10px', boxShadow: 'var(--shadow)' }}>
                           <source 
                             src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJobFull.id}/audio?token=${localStorage.getItem("token")}`} 
                             type="audio/mpeg" 
                           />
                         </audio>
-                      ) : (
-                        /* Video Player */
-                        <video 
-                          controls 
-                          crossOrigin="anonymous" 
-                          style={{ width: '100%', borderRadius: '10px', maxHeight: '250px', background: '#000', boxShadow: 'var(--shadow)', border: '1px solid var(--wire)' }}
-                        >
-                          <source 
-                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJobFull.id}/video?token=${localStorage.getItem("token")}`} 
-                            type="video/mp4" 
-                          />
-                          {(selectedJobFull.srtText || selectedJobFull.vttText) && (
-                            <track 
-                              kind="subtitles" 
-                              src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJobFull.id}/vtt?token=${localStorage.getItem("token")}`} 
-                              srcLang={selectedJobFull.targetLanguage || selectedJobFull.language || 'en'} 
-                              label="Subtitles" 
-                              default 
-                            />
-                          )}
-                        </video>
                       )}
                     </div>
                   )}
@@ -1406,6 +1458,24 @@ export default function Dashboard() {
                         {selectedJob.status || "—"}
                       </span>
                     </div>
+                    {selectedJobFull && selectedJobFull.status === 'done' && (
+                      <>
+                        <div className="info-row">
+                          <span className="info-label">Quality</span>
+                          <span className="info-val" style={{ color: selectedJobFull.qualityStatus === 'good' ? 'var(--volt)' : 'var(--rose)' }}>
+                            {selectedJobFull.qualityStatus === 'good' ? 'Good' : (selectedJobFull.qualityStatus === 'hallucination' ? 'Rejected' : 'Low Conf')}
+                          </span>
+                        </div>
+                        <div className="info-row">
+                          <span className="info-label">Lang Conf</span>
+                          <span className="info-val">{Math.round((selectedJobFull.languageConfidence || 0) * 100)}%</span>
+                        </div>
+                        <div className="info-row">
+                          <span className="info-label">Audio Conf</span>
+                          <span className="info-val">{Math.round((selectedJobFull.transcriptConfidence || 0) * 100)}%</span>
+                        </div>
+                      </>
+                    )}
                     <div className="info-row">
                       <span className="info-label">Created</span>
                       <span className="info-val">{fmtDate(selectedJob.createdAt)}</span>

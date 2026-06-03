@@ -9,3 +9,4 @@ edge-tts
 httpx
 yt-dlp
 websockets
+fasttext-wheel

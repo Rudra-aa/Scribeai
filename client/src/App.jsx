@@ -31,6 +31,16 @@ function PageLoader() {
   );
 }
 
+import { Navigate } from 'react-router-dom';
+
+function ProtectedRoute({ children }) {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    return <Navigate to="/auth" replace />;
+  }
+  return children;
+}
+
 export default function App() {
   return (
     <Router>
@@ -38,8 +48,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/live" element={<LiveMeeting />} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/live" element={<ProtectedRoute><LiveMeeting /></ProtectedRoute>} />
         </Routes>
       </Suspense>
     </Router>

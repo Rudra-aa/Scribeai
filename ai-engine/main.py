@@ -57,6 +57,45 @@ def _build_logger(name: str) -> logging.Logger:
 
 log = _build_logger("scribeai")
 
+# ─── FastText Initialization ────────────────────────────────────────────────────
+import urllib.request
+
+FASTTEXT_MODEL_PATH = Path(__file__).parent / "lid.176.bin"
+_fasttext_model = None
+
+def get_fasttext_model():
+    global _fasttext_model
+    if _fasttext_model is None:
+        try:
+            import fasttext
+            if not FASTTEXT_MODEL_PATH.exists():
+                log.info("Downloading fastText language model...")
+                urllib.request.urlretrieve("https://dl.fbaipublicfiles.com/fasttext/supervised-models/lid.176.bin", FASTTEXT_MODEL_PATH)
+                log.info("Downloaded fastText model.")
+            fasttext.FastText.eprint = lambda x: None
+            _fasttext_model = fasttext.load_model(str(FASTTEXT_MODEL_PATH))
+        except Exception as e:
+            log.warning("FastText initialization failed: %s", e)
+            _fasttext_model = False
+    return _fasttext_model
+
+def get_fasttext_lang(transcript: str) -> Tuple[Optional[str], float]:
+    """Returns (lang_code, confidence) based on transcript text"""
+    if not transcript.strip():
+        return None, 0.0
+    model = get_fasttext_model()
+    if not model:
+        return None, 0.0
+    text = transcript.replace("\n", " ").strip()
+    try:
+        predictions = model.predict(text, k=1)
+        lang_label = predictions[0][0].replace("__label__", "")
+        conf = float(predictions[1][0])
+        return lang_label, conf
+    except Exception as e:
+        log.warning("FastText prediction failed: %s", e)
+        return None, 0.0
+
 # ─── DNS / Environment Bootstrap ──────────────────────────────────────────────
 
 try:
@@ -308,9 +347,10 @@ async def db_update_async(job_id: str, updates: Dict[str, Any]):
         except Exception as exc:
             log.error("MongoDB update failed", extra={"job_id": job_id, "stage": "db", "error_detail": str(exc)})
         try:
+            headers = {"x-callback-secret": os.getenv("CALLBACK_SECRET", "scribeai_callback_dev_secret_123")}
             httpx.post(
                 f"{os.getenv('NODE_BACKEND_URL', 'http://localhost:5001')}/api/callback/job/{job_id}",
-                json=updates, timeout=2.0
+                json=updates, headers=headers, timeout=2.0
             )
         except Exception:
             pass
@@ -359,6 +399,7 @@ def compress_audio(input_path: str, output_path: str) -> bool:
                 "-ar", "16000",             # 16 kHz
                 "-b:a", "128k",             # 128 kbps MP3
                 "-codec:a", "libmp3lame",
+                "-af", "loudnorm,silenceremove=stop_periods=-1:stop_duration=2:stop_threshold=-50dB",
                 "-y", output_path,
             ],
             check=True, capture_output=True, timeout=300,
@@ -391,6 +432,7 @@ def split_audio_into_chunks(audio_path: str, chunk_secs: int, out_dir: str) -> L
                 "-segment_time", str(chunk_secs),
                 "-ac", "1", "-ar", "16000", "-b:a", "128k",
                 "-codec:a", "libmp3lame",
+                "-af", "loudnorm,silenceremove=stop_periods=-1:stop_duration=2:stop_threshold=-50dB",
                 "-reset_timestamps", "1",
                 "-y", chunk_pattern,
             ],
@@ -566,6 +608,8 @@ async def _transcribe_chunks_concurrent(
         "text":     " ".join(all_text_parts),
         "segments": all_segments,
         "language": detected_lang,
+        "language_probability": 1.0,
+        "transcript_confidence": 1.0
     }
 
 
@@ -574,6 +618,8 @@ async def _transcribe_groq(audio_path: str, language: str) -> Dict[str, Any]:
         "model":                     GROQ_WHISPER,
         "response_format":           "verbose_json",
         "timestamp_granularities[]": "segment",
+        "temperature":               "0",
+        "prompt":                    "Transcribe the audio accurately. Ignore background noise and music.",
     }
     if language and language != "auto":
         data["language"] = language
@@ -592,20 +638,32 @@ async def _transcribe_groq(audio_path: str, language: str) -> Dict[str, Any]:
         "segments": [{"start": s["start"], "end": s["end"], "text": s["text"]}
                      for s in raw.get("segments", [])],
         "language": raw.get("language", language),
+        "language_probability": 1.0,
+        "transcript_confidence": 1.0
     }
 
 
 async def _transcribe_local(audio_path: str, language: str) -> Dict[str, Any]:
     def _run():
         from faster_whisper import WhisperModel
-        model      = WhisperModel("small", device="cpu", compute_type="int8")
+        model      = WhisperModel("large-v3", device="cpu", compute_type="int8")
         lang_param = language if language != "auto" else None
-        segs_gen, info = model.transcribe(audio_path, beam_size=5, language=lang_param)
+        segs_gen, info = model.transcribe(
+            audio_path,
+            beam_size=5,
+            language=lang_param,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500)
+        )
         segs, full = [], []
+        confidences = []
         for s in segs_gen:
             segs.append({"start": s.start, "end": s.end, "text": s.text})
             full.append(s.text)
-        return {"text": " ".join(full), "segments": segs, "language": info.language}
+            confidences.append(math.exp(s.avg_logprob))
+            
+        avg_conf = sum(confidences) / len(confidences) if confidences else 1.0
+        return {"text": " ".join(full), "segments": segs, "language": info.language, "language_probability": getattr(info, 'language_probability', 1.0), "transcript_confidence": avg_conf}
     return await asyncio.to_thread(_run)
 
 
@@ -914,62 +972,115 @@ async def generate_tts(text: str, lang_code: str, out_path: Path) -> Optional[st
 
 # ─── Core Processing Pipeline ─────────────────────────────────────────────────
 
-async def process_pipeline(req: ProcessRequest, tmp_dir: str,
-                            audio_path: str, video_path: Optional[str] = None):
+async def process_pipeline(req: ProcessRequest, tmp_dir: str):
     job_id  = req.job_id
     t_start = time.perf_counter()
     log.info("Pipeline started", extra={"job_id": job_id, "stage": "pipeline_start"})
 
     try:
+        await db_update_async(job_id, {"status": "processing", "progress": 5})
+
+        if req.youtube_url:
+            log.info("DOWNLOADING", extra={"job_id": job_id, "stage": "downloading"})
+            await db_update_async(job_id, {"log_message": "DOWNLOADING"})
+            audio_path = await asyncio.to_thread(download_youtube_audio, req.youtube_url, tmp_dir)
+            video_path = None
+        else:
+            log.info("EXTRACTING AUDIO", extra={"job_id": job_id, "stage": "extracting"})
+            await db_update_async(job_id, {"log_message": "EXTRACTING AUDIO"})
+            video_path = req.file_path
+            audio_path = await asyncio.to_thread(extract_audio, video_path, tmp_dir)
+
         await db_update_async(job_id, {"status": "processing", "progress": 10})
 
         # ── 1. Audio compression (FIX-7) ────────────────────────────────────
         raw_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
         log.info("Raw audio: %.1fMB", raw_size_mb, extra={"job_id": job_id, "stage": "audio_size"})
-        await db_update_async(job_id, {"progress": 15})
+        await db_update_async(job_id, {"status": "processing", "progress": 15})
 
         # ── 2. Transcription ─────────────────────────────────────────────────
+        log.info("TRANSCRIBING", extra={"job_id": job_id, "stage": "transcribing"})
+        await db_update_async(job_id, {"log_message": "TRANSCRIBING"})
         result = await transcribe_audio(audio_path, normalize_lang(req.language))
 
         transcript_text = result["text"].strip()
         segments        = result["segments"]
         detected_lang   = result["language"]   # already normalized
+        lang_prob       = result.get("language_probability", 1.0)
+        trans_conf      = result.get("transcript_confidence", 1.0)
+
+        # ── 2b. Language Verification & Hallucination Checks ─────────────────
+        quality_status = "good"
+        rejection_reason = ""
+        
+        ft_lang, ft_conf = get_fasttext_lang(transcript_text)
+        if ft_lang:
+            ft_lang_norm = normalize_lang(ft_lang)
+            if ft_lang_norm != detected_lang and ft_conf > 0.5:
+                quality_status = "hallucination"
+                rejection_reason = f"Language mismatch (Whisper: {detected_lang}, FastText: {ft_lang_norm})"
+                # use fastText language confidence for reporting if mismatch
+                lang_prob = min(lang_prob, ft_conf)
+
+        if len(transcript_text) < 10 and not rejection_reason:
+            quality_status = "hallucination"
+            rejection_reason = "Transcript extremely short, likely noise or silence."
+            
+        if lang_prob < 0.80 and not rejection_reason:
+            quality_status = "low_confidence"
+            rejection_reason = f"Language detection confidence too low ({lang_prob:.2f})."
+            
+        if trans_conf < 0.60 and not rejection_reason:
+            quality_status = "low_confidence"
+            rejection_reason = f"Transcription confidence too low ({trans_conf:.2f})."
 
         log.info(
-            "Transcription done: %d chars, %d segments, lang=%s",
-            len(transcript_text), len(segments), detected_lang,
-            extra={"job_id": job_id, "stage": "transcription"},
+            "Transcription done: %d chars, %d segments, lang=%s (lang_conf=%.2f, t_conf=%.2f, quality=%s)",
+            len(transcript_text), len(segments), detected_lang, lang_prob, trans_conf, quality_status,
+            extra={"job_id": job_id, "stage": "transcription", "quality_status": quality_status, "rejection_reason": rejection_reason},
         )
 
         if not transcript_text:
             raise ValueError("No audible speech detected in the audio file.")
 
-        await db_update_async(job_id, {"progress": 45})
+        await db_update_async(job_id, {"status": "processing", "progress": 45})
 
         # ── 3. Baseline notes + subtitles ────────────────────────────────────
-        notes = build_notes(req.file_name, detected_lang, transcript_text, segments)
-        srt   = build_srt(segments)
-        vtt   = srt_to_vtt(srt)
+        notes = ""
+        srt = ""
+        vtt = ""
+        if quality_status == "good":
+            notes = build_notes(req.file_name, detected_lang, transcript_text, segments)
+            srt   = build_srt(segments)
+            vtt   = srt_to_vtt(srt)
+        else:
+            notes = f"# Transcription Rejected\n\n**Reason:** {rejection_reason}\n\n**Partial Transcript:**\n{transcript_text}"
+            srt   = build_srt(segments)
+            vtt   = srt_to_vtt(srt)
 
-        await db_update_async(job_id, {"progress": 55})
+        await db_update_async(job_id, {"status": "processing", "progress": 55})
 
         # ── 4. Translation ───────────────────────────────────────────────────
         target_code = normalize_lang(req.target_language) if req.target_language else None
         translate   = bool(target_code and target_code != detected_lang)
 
-        if translate:
+        if translate and quality_status == "good":
             lang_name  = LANG_NAMES.get(target_code, target_code.upper())
             sys_prompt = (
                 f"You are a professional translator. Translate accurately into {lang_name}. "
                 f"Return ONLY the direct translation, preserving tone and meaning."
             )
-            await db_update_async(job_id, {"progress": 65})
+            await db_update_async(job_id, {"status": "processing", "progress": 65})
 
             ctx             = memory.get_context_block(req.job_id)
+            log.info("TRANSLATING", extra={"job_id": job_id, "stage": "translating"})
+            await db_update_async(job_id, {"log_message": "TRANSLATING"})
             transcript_text = await translate_text_chunked(
                 transcript_text, target_code, sys_prompt, context_block=ctx
             )
 
+            log.info("SUMMARIZING", extra={"job_id": job_id, "stage": "summarizing"})
+            await db_update_async(job_id, {"log_message": "SUMMARIZING"})
             sentences          = re.split(r'(?<=[.!?।।])\s+', transcript_text.strip())
             translated_summary = " ".join(sentences[:3]).strip()
 
@@ -1001,12 +1112,14 @@ async def process_pipeline(req: ProcessRequest, tmp_dir: str,
             srt = await translate_srt(srt, target_code, sys_prompt)
             vtt = srt_to_vtt(srt)
 
-        await db_update_async(job_id, {"progress": 85})
+        await db_update_async(job_id, {"status": "processing", "progress": 85})
 
         # ── 5. TTS ────────────────────────────────────────────────────────────
-        voiced_lang        = normalize_lang(req.target_language or detected_lang)
-        summary_path       = OUTPUTS_DIR / f"{job_id}_summary.mp3"
-        audio_summary_path = await generate_tts(transcript_text[:3000], voiced_lang, summary_path) or ""
+        audio_summary_path = ""
+        if quality_status == "good":
+            voiced_lang        = normalize_lang(req.target_language or detected_lang)
+            summary_path       = OUTPUTS_DIR / f"{job_id}_summary.mp3"
+            audio_summary_path = await generate_tts(transcript_text[:3000], voiced_lang, summary_path) or ""
 
         # ── 6. Subtitle burn ──────────────────────────────────────────────────
         subtitled_video_path = ""
@@ -1015,10 +1128,14 @@ async def process_pipeline(req: ProcessRequest, tmp_dir: str,
 
         # ── 7. Finalise ───────────────────────────────────────────────────────
         e2e_ms = int((time.perf_counter() - t_start) * 1000)
+        log.info("COMPLETED", extra={"job_id": job_id, "stage": "completed"})
+        await db_update_async(job_id, {"log_message": "COMPLETED"})
         log.info("Pipeline complete in %dms", e2e_ms,
                  extra={"job_id": job_id, "stage": "done", "latency_ms": e2e_ms})
 
+        log.info("SAVING", extra={"job_id": job_id, "stage": "saving"})
         await db_update_async(job_id, {
+            "log_message":          "SAVING",
             "status":               "done",
             "progress":             100,
             "notes":                notes,
@@ -1032,6 +1149,10 @@ async def process_pipeline(req: ProcessRequest, tmp_dir: str,
             "audio_summary_path":   audio_summary_path,
             "subtitled_video_path": subtitled_video_path,
             "e2e_latency_ms":       e2e_ms,
+            "language_confidence":  lang_prob,
+            "transcript_confidence":trans_conf,
+            "quality_status":       quality_status,
+            "rejection_reason":     rejection_reason
         })
 
     except Exception as exc:
@@ -1096,17 +1217,10 @@ async def health():
 async def process_media(req: ProcessRequest, bg_tasks: BackgroundTasks):
     tmp_dir = tempfile.mkdtemp(prefix=f"scribeai_{req.job_id}_")
     try:
-        if req.youtube_url:
-            audio_path = await asyncio.to_thread(download_youtube_audio, req.youtube_url, tmp_dir)
-            video_path = None
-        else:
-            if not req.file_path or not os.path.exists(req.file_path):
-                raise HTTPException(400, "file_path missing or not found on disk.")
-            video_path = req.file_path
-            # FIX-7: compress during extraction (tmp_dir keeps the compressed file)
-            audio_path = await asyncio.to_thread(extract_audio, video_path, tmp_dir)
+        if not req.youtube_url and (not req.file_path or not os.path.exists(req.file_path)):
+            raise HTTPException(400, "file_path missing or not found on disk.")
 
-        bg_tasks.add_task(process_pipeline, req, tmp_dir, audio_path, video_path)
+        bg_tasks.add_task(process_pipeline, req, tmp_dir)
         return {"status": "processing", "job_id": req.job_id}
     except HTTPException:
         raise

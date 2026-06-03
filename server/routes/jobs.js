@@ -34,12 +34,18 @@ const upload = multer({
 const formatJob = (job) => {
     return {
         id: job.id,
+        uid: job.uid,
         status: job.status,
         progress: job.progress,
         fileName: job.file_name,
         fileSize: job.file_size,
         language: job.language,
         targetLanguage: job.target_lang,
+        filePath: job.file_path,
+        retryCount: job.retry_count,
+        lastProgress: job.last_progress,
+        lastProgressAt: job.last_progress_at,
+        logs: job.logs || [],
         notes: job.notes,
         transcript: job.transcript,
         srtText: job.srt_text,
@@ -50,6 +56,10 @@ const formatJob = (job) => {
         segments: job.segments,
         audioSummaryPath: job.audio_summary_path,
         subtitledVideoPath: job.subtitled_video_path,
+        languageConfidence: job.language_confidence,
+        transcriptConfidence: job.transcript_confidence,
+        qualityStatus: job.quality_status,
+        rejectionReason: job.rejection_reason,
         createdAt: job.createdAt,
         updatedAt: job.updatedAt
     };
@@ -137,6 +147,9 @@ router.delete('/job/:jobId', protect, async (req, res) => {
             if (job.subtitledVideoPath && fs.existsSync(job.subtitledVideoPath)) {
                 fs.unlinkSync(job.subtitledVideoPath);
             }
+            if (job.filePath && fs.existsSync(job.filePath)) {
+                fs.unlinkSync(job.filePath);
+            }
 
             memJobs.delete(req.params.jobId);
             return res.json({ message: 'Job and associated notes deleted successfully' });
@@ -156,6 +169,9 @@ router.delete('/job/:jobId', protect, async (req, res) => {
         }
         if (job.subtitled_video_path && fs.existsSync(job.subtitled_video_path)) {
             fs.unlinkSync(job.subtitled_video_path);
+        }
+        if (job.file_path && fs.existsSync(job.file_path)) {
+            fs.unlinkSync(job.file_path);
         }
 
         await Job.deleteOne({ id: req.params.jobId });
@@ -190,11 +206,20 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
                 fileSize: req.file.size,
                 language,
                 targetLanguage,
+                filePath: req.file.path,
+                retryCount: 0,
+                lastProgress: 5,
+                lastProgressAt: now,
+                logs: [],
                 notes: '',
                 transcript: '',
                 srtText: '',
                 vttText: '',
                 error: '',
+                languageConfidence: 1.0,
+                transcriptConfidence: 1.0,
+                qualityStatus: 'processing',
+                rejectionReason: '',
                 createdAt: now,
                 updatedAt: now
             });
@@ -208,7 +233,12 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
                 file_name: filename,
                 file_size: req.file.size,
                 language,
-                target_lang: targetLanguage
+                target_lang: targetLanguage,
+                file_path: req.file.path,
+                retry_count: 0,
+                last_progress: 5,
+                last_progress_at: new Date(),
+                logs: []
             });
         }
 
@@ -220,8 +250,18 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
             file_name: filename,
             language,
             target_language: targetLanguage
-        }).catch(err => {
+        }).catch(async err => {
             console.error('Error calling Python AI engine:', err.message);
+            if (global.useMemoryStore) {
+                const memJob = memJobs.get(jobId);
+                if (memJob) {
+                    memJob.status = 'error';
+                    memJob.error = 'AI Engine unavailable: ' + err.message;
+                    memJobs.set(jobId, memJob);
+                }
+            } else {
+                await Job.updateOne({ id: jobId }, { $set: { status: 'error', error: 'AI Engine unavailable: ' + err.message } });
+            }
         });
 
         res.status(202).json({ job_id: jobId, status: 'processing' });
@@ -254,11 +294,21 @@ router.post('/process-youtube', protect, async (req, res) => {
                 language,
                 targetLanguage: target_language,
                 sourceUrl: youtube_url,
+                filePath: '',
+                retryCount: 0,
+                lastProgress: 5,
+                lastProgressAt: now,
+                logs: [],
+                sourceUrl: youtube_url,
                 notes: '',
                 transcript: '',
                 srtText: '',
                 vttText: '',
                 error: '',
+                languageConfidence: 1.0,
+                transcriptConfidence: 1.0,
+                qualityStatus: 'processing',
+                rejectionReason: '',
                 createdAt: now,
                 updatedAt: now
             });
@@ -273,6 +323,11 @@ router.post('/process-youtube', protect, async (req, res) => {
                 file_size: 0,
                 language,
                 target_lang: target_language,
+                file_path: '',
+                retry_count: 0,
+                last_progress: 5,
+                last_progress_at: new Date(),
+                logs: [],
                 source_url: youtube_url
             });
         }
@@ -285,8 +340,18 @@ router.post('/process-youtube', protect, async (req, res) => {
             file_name: filename,
             language,
             target_language
-        }).catch(err => {
+        }).catch(async err => {
             console.error('Error calling Python AI engine for YouTube:', err.message);
+            if (global.useMemoryStore) {
+                const memJob = memJobs.get(jobId);
+                if (memJob) {
+                    memJob.status = 'error';
+                    memJob.error = 'AI Engine unavailable: ' + err.message;
+                    memJobs.set(jobId, memJob);
+                }
+            } else {
+                await Job.updateOne({ id: jobId }, { $set: { status: 'error', error: 'AI Engine unavailable: ' + err.message } });
+            }
         });
 
         res.status(202).json({ job_id: jobId, status: 'processing' });
@@ -323,7 +388,8 @@ router.get('/download/:jobId/:fmt', async (req, res) => {
         }
 
         const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'scribeai_jwt_dev_secret_key_123');
+        if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
         const userId = decoded.id;
 
         let job;
@@ -399,7 +465,8 @@ router.get('/download/:jobId/audio', async (req, res) => {
         if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
         const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'scribeai_jwt_dev_secret_key_123');
+        if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
         let job;
 
         if (global.useMemoryStore) {
@@ -442,7 +509,8 @@ router.get('/download/:jobId/video', async (req, res) => {
         if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
         const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'scribeai_jwt_dev_secret_key_123');
+        if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
         let job;
 
         if (global.useMemoryStore) {
@@ -485,7 +553,8 @@ router.get('/download/:jobId/vtt', async (req, res) => {
         if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
         const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'scribeai_jwt_dev_secret_key_123');
+        if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
         let job;
 
         if (global.useMemoryStore) {
@@ -508,6 +577,12 @@ router.get('/download/:jobId/vtt', async (req, res) => {
 // 8. HTTP Callback endpoint for Python AI Engine to update job status
 router.post('/callback/job/:jobId', async (req, res) => {
     try {
+        const secret = process.env.CALLBACK_SECRET || 'scribeai_callback_dev_secret_123';
+        const providedSecret = req.headers['x-callback-secret'];
+        if (providedSecret !== secret) {
+            return res.status(401).json({ message: 'Unauthorized callback' });
+        }
+
         const { jobId } = req.params;
         const updates = req.body;
         console.log(`[Callback] Job ${jobId} updated:`, updates.status, `(Progress: ${updates.progress}%)`);
@@ -515,10 +590,20 @@ router.post('/callback/job/:jobId', async (req, res) => {
         // Check in-memory store
         const memJob = memJobs.get(jobId);
         if (memJob) {
+            const isProgressChanged = updates.progress !== undefined && updates.progress !== memJob.progress;
+            
+            const newLogs = memJob.logs ? [...memJob.logs] : [];
+            if (updates.log_message) {
+                newLogs.push({ message: updates.log_message, timestamp: new Date().toISOString() });
+            }
+
             const updated = {
                 ...memJob,
                 status: updates.status !== undefined ? updates.status : memJob.status,
                 progress: updates.progress !== undefined ? updates.progress : memJob.progress,
+                lastProgress: isProgressChanged ? updates.progress : memJob.lastProgress,
+                lastProgressAt: isProgressChanged ? new Date().toISOString() : memJob.lastProgressAt,
+                logs: newLogs,
                 notes: updates.notes !== undefined ? updates.notes : memJob.notes,
                 transcript: updates.transcript !== undefined ? updates.transcript : memJob.transcript,
                 srtText: updates.srt_text !== undefined ? updates.srt_text : memJob.srtText,
@@ -528,6 +613,10 @@ router.post('/callback/job/:jobId', async (req, res) => {
                 audioSummaryPath: updates.audio_summary_path !== undefined ? updates.audio_summary_path : memJob.audioSummaryPath,
                 subtitledVideoPath: updates.subtitled_video_path !== undefined ? updates.subtitled_video_path : memJob.subtitledVideoPath,
                 error: updates.error !== undefined ? updates.error : memJob.error,
+                languageConfidence: updates.language_confidence !== undefined ? updates.language_confidence : memJob.languageConfidence,
+                transcriptConfidence: updates.transcript_confidence !== undefined ? updates.transcript_confidence : memJob.transcriptConfidence,
+                qualityStatus: updates.quality_status !== undefined ? updates.quality_status : memJob.qualityStatus,
+                rejectionReason: updates.rejection_reason !== undefined ? updates.rejection_reason : memJob.rejectionReason,
                 updatedAt: new Date().toISOString()
             };
             memJobs.set(jobId, updated);
@@ -535,13 +624,89 @@ router.post('/callback/job/:jobId', async (req, res) => {
 
         // Also update MongoDB if we are NOT in-memory mode
         if (!global.useMemoryStore) {
-            await Job.updateOne({ id: jobId }, { $set: updates });
+            const updateOps = {};
+            
+            if (updates.log_message) {
+                updateOps.$push = { logs: { message: updates.log_message, timestamp: new Date() } };
+                delete updates.log_message;
+            }
+            
+            if (updates.progress !== undefined) {
+                updates.last_progress = updates.progress;
+                updates.last_progress_at = new Date();
+            }
+            
+            if (Object.keys(updates).length > 0) {
+                updateOps.$set = updates;
+            }
+            
+            if (Object.keys(updateOps).length > 0) {
+                await Job.updateOne({ id: jobId }, updateOps);
+            }
         }
 
         res.json({ success: true });
     } catch (err) {
         console.error('Callback error:', err.message);
         res.status(500).json({ message: 'Error processing callback', error: err.message });
+    }
+});
+
+// 9. Retry Job Endpoint
+router.post('/job/:jobId/retry', protect, async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        let job;
+
+        if (global.useMemoryStore) {
+            job = memJobs.get(jobId);
+            if (!job) return res.status(404).json({ message: 'Job not found' });
+            if (job.uid !== req.user._id.toString()) return res.status(403).json({ message: 'Access denied' });
+
+            const now = new Date().toISOString();
+            job.status = 'processing';
+            job.progress = 0;
+            job.lastProgress = 0;
+            job.lastProgressAt = now;
+            job.retryCount = (job.retryCount || 0) + 1;
+            job.error = '';
+            job.logs = [{ message: 'RETRYING', timestamp: now }];
+            memJobs.set(jobId, job);
+        } else {
+            job = await Job.findOne({ id: jobId });
+            if (!job) return res.status(404).json({ message: 'Job not found' });
+            if (job.uid !== req.user._id.toString()) return res.status(403).json({ message: 'Access denied' });
+
+            await Job.updateOne({ id: jobId }, {
+                $set: {
+                    status: 'processing',
+                    progress: 0,
+                    last_progress: 0,
+                    last_progress_at: new Date(),
+                    error: '',
+                    logs: [{ message: 'RETRYING', timestamp: new Date() }]
+                },
+                $inc: { retry_count: 1 }
+            });
+        }
+
+        // Trigger AI engine
+        axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process', {
+            job_id: jobId,
+            uid: req.user._id.toString(),
+            file_path: job.filePath || job.file_path,
+            youtube_url: job.sourceUrl || job.source_url,
+            file_name: job.fileName || job.file_name,
+            language: job.language,
+            target_language: job.targetLanguage || job.target_lang
+        }).catch(async err => {
+            console.error('Error calling Python AI engine on retry:', err.message);
+        });
+
+        res.json({ message: 'Retry initiated', status: 'processing' });
+    } catch (err) {
+        console.error('Retry error:', err.message);
+        res.status(500).json({ message: 'Error retrying job', error: err.message });
     }
 });
 

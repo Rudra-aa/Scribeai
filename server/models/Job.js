@@ -9,6 +9,11 @@ const jobSchema = new mongoose.Schema({
     file_size: { type: Number, default: 0 },
     language: { type: String, default: 'en' },
     target_lang: { type: String, default: null },
+    file_path: { type: String, default: '' },
+    retry_count: { type: Number, default: 0 },
+    last_progress: { type: Number, default: 0 },
+    last_progress_at: { type: Date, default: Date.now },
+    logs: { type: [{ message: String, timestamp: Date }], default: [] },
     notes: { type: String, default: '' },
     transcript: { type: String, default: '' },
     srt_text: { type: String, default: '' },
@@ -19,6 +24,10 @@ const jobSchema = new mongoose.Schema({
     segments: { type: Number, default: 0 },
     audio_summary_path: { type: String, default: '' },
     subtitled_video_path: { type: String, default: '' },
+    language_confidence: { type: Number, default: 1.0 },
+    transcript_confidence: { type: Number, default: 1.0 },
+    quality_status: { type: String, default: 'good' },
+    rejection_reason: { type: String, default: '' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Job', jobSchema);

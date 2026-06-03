@@ -13,8 +13,10 @@ let idCounter = 1;
 // Generate a fake ObjectId-style ID
 const fakeId = () => `mem_${Date.now()}_${idCounter++}`;
 
-const generateToken = (id) =>
-    jwt.sign({ id }, process.env.JWT_SECRET || 'scribeai_jwt_dev_secret_key_123', { expiresIn: '30d' });
+const generateToken = (id) => {
+    if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined');
+    return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d', algorithm: 'HS256' });
+};
 
 // ── Seed admin on module load ─────────────────────────────────────────────────
 async function seedAdminInMemory() {

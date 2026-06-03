@@ -5,19 +5,24 @@ const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io');
 const helmet = require('helmet');
+const { resolveMongoUri } = require('./mongoConnectionHelper');
 
 dotenv.config({ path: '../.env' });
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+    : '*';
+
 const io = new Server(server, {
-    cors: { origin: '*' }
+    cors: { origin: allowedOrigins }
 });
 
 const PORT = process.env.PORT || 5001;
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json({ limit: '1mb' })); // basic input sanitization limit
 
 // Health check
@@ -149,13 +154,19 @@ async function seedAdminMongo() {
 
 // Startup
 async function startServer() {
+    if (!process.env.JWT_SECRET) {
+        console.error('FATAL: JWT_SECRET environment variable is not defined.');
+        process.exit(1);
+    }
     const rawUri = (process.env.MONGO_URI || '').trim();
 
     if (rawUri.startsWith('mongodb')) {
         try {
             console.log('Attempting MongoDB connection...');
+            
+            const resolvedUri = await resolveMongoUri(rawUri);
 
-            await mongoose.connect(rawUri, {
+            await mongoose.connect(resolvedUri, {
                 serverSelectionTimeoutMS: 5000
             });
 
@@ -165,7 +176,7 @@ async function startServer() {
 
             await seedAdminMongo();
 
-            printCredentials();
+
 
             server.listen(PORT, () => {
                 console.log(`Server running on port ${PORT}`);
@@ -173,14 +184,24 @@ async function startServer() {
 
             return;
         } catch (err) {
-            console.log(
+            console.error(
                 'MongoDB unavailable:',
                 err.message
             );
+            
+            if (process.env.NODE_ENV === 'production') {
+                console.error('FATAL: MongoDB connection failed in production. Exiting.');
+                process.exit(1);
+            }
 
             console.log(
                 'Starting in in-memory mode...'
             );
+        }
+    } else {
+        if (process.env.NODE_ENV === 'production') {
+            console.error('FATAL: Invalid or missing MONGO_URI in production. Exiting.');
+            process.exit(1);
         }
     }
 
@@ -193,7 +214,7 @@ async function startServer() {
 
     await seedAdminInMemory();
 
-    printCredentials();
+
 
     server.listen(PORT, () => {
         console.log(`Server running on port ${PORT}`);
@@ -203,13 +224,6 @@ async function startServer() {
     });
 }
 
-function printCredentials() {
-    console.log('\nAdmin Test Credentials');
-    console.log('Email: admin@scribeai.com');
-    console.log('Password: Password123');
-    console.log(
-        'Login: http://localhost:5173/auth\n'
-    );
-}
+
 
 startServer();

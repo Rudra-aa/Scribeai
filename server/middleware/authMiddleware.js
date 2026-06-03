@@ -7,9 +7,8 @@ const protect = async (req, res, next) => {
         try {
             token = req.headers.authorization.split(' ')[1];
 
-            // Verify with the same secret used when signing
-            const secret = process.env.JWT_SECRET || 'scribeai_jwt_dev_secret_key_123';
-            const decoded = jwt.verify(token, secret);
+            if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined');
+            const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
 
             if (global.useMemoryStore) {
                 // In-memory mode: no Mongoose, attach minimal user object from token payload

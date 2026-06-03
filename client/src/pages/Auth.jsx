@@ -82,8 +82,6 @@ export default function Auth() {
   const navigate = useNavigate();
 
   const [mode, setMode] = useState(searchParams.get('mode') === 'signup' ? 'signup' : 'signin');
-  const [showReset, setShowReset] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -127,16 +125,6 @@ export default function Auth() {
     }
   };
 
-  const handleResetSubmit = (e) => {
-    e.preventDefault();
-    if (!email) return setError('Please enter your email.');
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setShowReset(false);
-      setResetSuccess(true);
-    }, 1000);
-  };
 
   const switchMode = (m) => { setMode(m); setError(null); };
 
@@ -239,7 +227,6 @@ export default function Auth() {
         {/* Card */}
         <div style={{ maxWidth: '420px', width: '100%', margin: 'auto' }}>
           <AnimatePresence mode="wait">
-            {!showReset && !resetSuccess && (
               <motion.div
                 key="form"
                 initial={{ opacity: 0, y: 20 }}
@@ -317,13 +304,6 @@ export default function Auth() {
                     </div>
                   )}
 
-                  {mode === 'signin' && (
-                    <div style={{ textAlign: 'right', marginBottom: '1rem', marginTop: '-0.25rem' }}>
-                      <button type="button" onClick={() => { setShowReset(true); setError(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: '0.8rem', textDecoration: 'underline', padding: 0 }}>
-                        Forgot password?
-                      </button>
-                    </div>
-                  )}
 
                   <button
                     type="submit"
@@ -351,49 +331,6 @@ export default function Auth() {
                   )}
                 </form>
               </motion.div>
-            )}
-
-            {showReset && !resetSuccess && (
-              <motion.div
-                key="reset"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 800, fontSize: '1.8rem', color: '#fff', marginBottom: '0.5rem' }}>Reset password</h2>
-                <p style={{ color: '#64748B', fontSize: '0.875rem', marginBottom: '1.5rem' }}>Enter your email and we'll send a reset link.</p>
-                {error && <div style={{ padding: '0.75rem 1rem', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#F87171', fontSize: '0.85rem', marginBottom: '1rem' }}>⚠ {error}</div>}
-                <form onSubmit={handleResetSubmit}>
-                  <OsInput label="Email address" type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} />
-                  <button type="submit" disabled={loading} style={{ width: '100%', marginTop: '1rem', padding: '0.875rem', borderRadius: '14px', border: 'none', cursor: 'pointer', fontFamily: 'Space Grotesk, sans-serif', fontWeight: 700, fontSize: '1rem', color: '#fff', background: 'linear-gradient(135deg, #7C3AED, #06B6D4)' }}>
-                    {loading ? '…' : 'Send reset link'}
-                  </button>
-                </form>
-                <button onClick={() => { setShowReset(false); setError(null); }} style={{ display: 'block', margin: '1.25rem auto 0', background: 'none', border: 'none', cursor: 'pointer', color: '#64748B', fontSize: '0.82rem', textDecoration: 'underline' }}>
-                  ← Back to sign in
-                </button>
-              </motion.div>
-            )}
-
-            {resetSuccess && (
-              <motion.div
-                key="success"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-                style={{ textAlign: 'center' }}
-              >
-                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', border: '2px solid rgba(16,185,129,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', fontSize: '1.5rem', color: '#10B981' }}>
-                  ✓
-                </div>
-                <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontWeight: 800, fontSize: '1.5rem', color: '#fff', marginBottom: '0.75rem' }}>Check your inbox</h2>
-                <p style={{ color: '#94A3B8', marginBottom: '2rem' }}>We've sent a password reset link to <strong style={{ color: '#fff' }}>{email}</strong>.</p>
-                <button onClick={() => { setResetSuccess(false); setShowReset(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7C3AED', textDecoration: 'underline', fontSize: '0.875rem' }}>
-                  ← Back to sign in
-                </button>
-              </motion.div>
-            )}
           </AnimatePresence>
         </div>
       </div>
