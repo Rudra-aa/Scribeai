@@ -314,7 +314,7 @@ export default function Dashboard() {
   // ─── API Helper ──────────────────────────────────────────────────────────────
   const apiCall = async (path, opts = {}) => {
     const token = localStorage.getItem("token");
-    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api${path}`, {
+    const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5001' : '')}/api${path}`, {
       cache: 'no-store',
       ...opts,
       headers: {
@@ -359,7 +359,7 @@ export default function Dashboard() {
 
     // 1. Check Node backend health
     try {
-      const nodeRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/health`);
+      const nodeRes = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5001' : '')}/health`);
       if (!nodeRes.ok) throw new Error("Node backend offline");
       const nodeData = await nodeRes.json();
       setBackendStatus('online');
@@ -638,11 +638,11 @@ export default function Dashboard() {
     
     if (fmt === 'md' || fmt === 'srt' || fmt === 'vtt') {
       // Server routes handle this nicely by streaming from MongoDB
-      const downloadUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJob.id}/${fmt}?token=${token}`;
+      const downloadUrl = `${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5001' : '')}/api/download/${selectedJob.id}/${fmt}?token=${token}`;
       window.open(downloadUrl, "_blank");
       showToast(`Downloading .${fmt.toUpperCase()} file`);
     } else if (fmt === 'audio' || fmt === 'video') {
-      const downloadUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/download/${selectedJob.id}/${fmt}?token=${token}`;
+      const downloadUrl = `${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5001' : '')}/api/download/${selectedJob.id}/${fmt}?token=${token}`;
       window.open(downloadUrl, "_blank");
       showToast(`Downloading media file`);
     }
@@ -712,7 +712,7 @@ export default function Dashboard() {
       }
 
       // Connect socket.io client to MERN backend
-      socketRef.current = io(import.meta.env.VITE_API_URL || 'http://localhost:5001');
+      socketRef.current = io(import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5001' : ''));
 
       socketRef.current.on('connect', () => {
         setIsRecording(true);

@@ -126,6 +126,7 @@ io.on('connection', (socket) => {
 });
 
 console.log('✅ Imports Successful! Node.js MERN Backend fully loaded.');
+console.log("Allowed Origins:", process.env.ALLOWED_ORIGINS);
 console.log(`[Startup] AI_ENGINE_URL configured as: ${process.env.AI_ENGINE_URL || 'NOT SET (defaulting to http://localhost:8000)'}`);
 
 // Seed admin user in MongoDB
@@ -164,22 +165,27 @@ async function startServer() {
     }
     
     const aiEngineUrl = process.env.AI_ENGINE_URL || 'http://localhost:8000';
-    if (process.env.NODE_ENV === 'production' && (aiEngineUrl.includes('localhost') || aiEngineUrl.includes('127.0.0.1'))) {
-        console.error('FATAL: AI_ENGINE_URL cannot point to localhost in production. Please set it to the actual deployed AI Engine URL.');
-        process.exit(1);
-    }
     
-    try {
-        console.log(`Checking AI Engine availability at ${aiEngineUrl}/health...`);
-        const axios = require('axios');
-        await axios.get(`${aiEngineUrl}/health`, { timeout: 5000 });
-        console.log('✅ AI Engine is deployed and reachable.');
-    } catch (err) {
-        console.error(`⚠️ WARNING: AI Engine at ${aiEngineUrl} is currently unreachable: ${err.message}`);
-        if (process.env.NODE_ENV === 'production') {
-            console.error('FATAL: AI Engine must be reachable in production. Exiting.');
+    if (process.env.ENABLE_AI_STARTUP_CHECK === 'true') {
+        if (process.env.NODE_ENV === 'production' && (aiEngineUrl.includes('localhost') || aiEngineUrl.includes('127.0.0.1'))) {
+            console.error('FATAL: AI_ENGINE_URL cannot point to localhost in production. Please set it to the actual deployed AI Engine URL.');
             process.exit(1);
         }
+        
+        try {
+            console.log(`Checking AI Engine availability at ${aiEngineUrl}/health...`);
+            const axios = require('axios');
+            await axios.get(`${aiEngineUrl}/health`, { timeout: 5000 });
+            console.log('✅ AI Engine is deployed and reachable.');
+        } catch (err) {
+            console.error(`⚠️ WARNING: AI Engine at ${aiEngineUrl} is currently unreachable: ${err.message}`);
+            if (process.env.NODE_ENV === 'production') {
+                console.error('FATAL: AI Engine must be reachable in production. Exiting.');
+                process.exit(1);
+            }
+        }
+    } else {
+        console.log('⚠️ AI Engine startup validation is disabled (ENABLE_AI_STARTUP_CHECK != true). Skipping checks.');
     }
 
     const rawUri = (process.env.MONGO_URI || '').trim();

@@ -107,7 +107,7 @@ export default function Auth() {
     setLoading(true);
     try {
       const endpoint = mode === 'signup' ? '/api/auth/register' : '/api/auth/login';
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${endpoint}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:5001' : '')}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
