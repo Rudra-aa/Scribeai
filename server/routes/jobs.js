@@ -243,13 +243,18 @@ router.post('/upload', protect, upload.single('file'), async (req, res) => {
         }
 
         // Notify Python AI Engine in background
-        axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process', {
+        const aiUrl = (process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process';
+        const aiPayload = {
             job_id: jobId,
             uid: req.user._id.toString(),
             file_path: req.file.path,
             file_name: filename,
             language,
             target_language: targetLanguage
+        };
+        console.log(`[AI Engine] Sending request to ${aiUrl} with body:`, aiPayload);
+        axios.post(aiUrl, aiPayload).then(response => {
+            console.log(`[AI Engine] Received response from ${aiUrl}:`, response.data);
         }).catch(async err => {
             console.error('Error calling Python AI engine:', err.message);
             if (global.useMemoryStore) {
@@ -333,13 +338,18 @@ router.post('/process-youtube', protect, async (req, res) => {
         }
 
         // Notify Python AI Engine
-        axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process', {
+        const aiUrl = (process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process';
+        const aiPayload = {
             job_id: jobId,
             uid: req.user._id.toString(),
             youtube_url,
             file_name: filename,
             language,
             target_language
+        };
+        console.log(`[AI Engine] Sending request to ${aiUrl} with body:`, aiPayload);
+        axios.post(aiUrl, aiPayload).then(response => {
+            console.log(`[AI Engine] Received response from ${aiUrl}:`, response.data);
         }).catch(async err => {
             console.error('Error calling Python AI engine for YouTube:', err.message);
             if (global.useMemoryStore) {
@@ -691,7 +701,8 @@ router.post('/job/:jobId/retry', protect, async (req, res) => {
         }
 
         // Trigger AI engine
-        axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process', {
+        const aiUrl = (process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/process';
+        const aiPayload = {
             job_id: jobId,
             uid: req.user._id.toString(),
             file_path: job.filePath || job.file_path,
@@ -699,6 +710,10 @@ router.post('/job/:jobId/retry', protect, async (req, res) => {
             file_name: job.fileName || job.file_name,
             language: job.language,
             target_language: job.targetLanguage || job.target_lang
+        };
+        console.log(`[AI Engine] Sending request to ${aiUrl} with body:`, aiPayload);
+        axios.post(aiUrl, aiPayload).then(response => {
+             console.log(`[AI Engine] Received response from ${aiUrl}:`, response.data);
         }).catch(async err => {
             console.error('Error calling Python AI engine on retry:', err.message);
         });

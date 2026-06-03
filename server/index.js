@@ -101,10 +101,13 @@ io.on('connection', (socket) => {
 
             // Call Python AI Engine for high-speed translation
             const axios = require('axios');
-            const response = await axios.post((process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/translate', {
+            const aiUrl = (process.env.AI_ENGINE_URL || 'http://localhost:8000') + '/ai/translate';
+            console.log(`[AI Engine] Sending request to ${aiUrl} with body:`, { text, target_language: targetLang });
+            const response = await axios.post(aiUrl, {
                 text: text,
                 target_language: targetLang
             });
+            console.log(`[AI Engine] Received response from ${aiUrl}:`, response.data);
 
             const translation = response.data.translation;
             socket.emit('transcription', {
@@ -123,6 +126,7 @@ io.on('connection', (socket) => {
 });
 
 console.log('✅ Imports Successful! Node.js MERN Backend fully loaded.');
+console.log(`[Startup] AI_ENGINE_URL configured as: ${process.env.AI_ENGINE_URL || 'NOT SET (defaulting to http://localhost:8000)'}`);
 
 // Seed admin user in MongoDB
 async function seedAdminMongo() {
@@ -158,6 +162,26 @@ async function startServer() {
         console.error('FATAL: JWT_SECRET environment variable is not defined.');
         process.exit(1);
     }
+    
+    const aiEngineUrl = process.env.AI_ENGINE_URL || 'http://localhost:8000';
+    if (process.env.NODE_ENV === 'production' && (aiEngineUrl.includes('localhost') || aiEngineUrl.includes('127.0.0.1'))) {
+        console.error('FATAL: AI_ENGINE_URL cannot point to localhost in production. Please set it to the actual deployed AI Engine URL.');
+        process.exit(1);
+    }
+    
+    try {
+        console.log(`Checking AI Engine availability at ${aiEngineUrl}/health...`);
+        const axios = require('axios');
+        await axios.get(`${aiEngineUrl}/health`, { timeout: 5000 });
+        console.log('✅ AI Engine is deployed and reachable.');
+    } catch (err) {
+        console.error(`⚠️ WARNING: AI Engine at ${aiEngineUrl} is currently unreachable: ${err.message}`);
+        if (process.env.NODE_ENV === 'production') {
+            console.error('FATAL: AI Engine must be reachable in production. Exiting.');
+            process.exit(1);
+        }
+    }
+
     const rawUri = (process.env.MONGO_URI || '').trim();
 
     if (rawUri.startsWith('mongodb')) {

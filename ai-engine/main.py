@@ -1412,6 +1412,11 @@ async def _ws_tts_and_notify(ws: WebSocket, text: str, lang: str,
 
 # ─── Debug Endpoints ──────────────────────────────────────────────────────────
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "ai-engine"}
+
+
 @app.get("/debug/report")
 async def debug_report():
     log_file    = Path(__file__).parent / "scribeai.log"
